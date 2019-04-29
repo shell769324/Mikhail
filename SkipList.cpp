@@ -6,14 +6,11 @@
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
-#include <assert.h>
 #include <pthread.h>
 #include <unistd.h>
 
 struct Succ;
 struct Node;
-
-pthread_mutex_t lock;
 
 std::string sub(Node* address) {
 	if(address == nullptr) {
@@ -133,7 +130,6 @@ public:
   	std::pair<Node*, Node*> nodePair = SearchToLevel_SL(k, 1);
   	Node* prev_node = nodePair.first;
   	Node* next_node = nodePair.second;
-    assert(prev_node != nullptr);
   	if(prev_node -> key == k) {
   		return nullptr;
   	}
@@ -153,7 +149,6 @@ public:
   			delete newNode;
   			return nullptr;
   		}
-      assert(newRNode != nullptr);
   		if(newRNode -> succ -> mark) {
   			if((result == newNode) && (newNode != newRNode)) {
   				DeleteNode(prev_node, newNode);
@@ -189,7 +184,7 @@ public:
   	return del_node;
   }
 
-void printSLRough() {
+  void printSLRough() {
     Node* curr = head;
     while(curr -> up != curr) {
       curr = curr -> up;
@@ -271,7 +266,6 @@ private:
   		// (curr_node, next_node)
   		std::pair<Node*, Node*> next = SearchRight(k, curr_node);
   		curr_node = next.first;
-      assert(curr_node != nullptr);
   		curr_node = curr_node -> down;
   		curr_v--;
   	}
@@ -291,26 +285,17 @@ private:
   }
 
   std::pair<Node*, Node*> SearchRight(int k, Node* curr_node) {
-    assert(curr_node != nullptr);
-  	Node* next_node = curr_node -> succ -> right; 
-    if(next_node == nullptr) {
-      pthread_mutex_lock(&lock);
-      printSLFine();
-      std::cout << "\n" << sub(curr_node) << " " << curr_node -> key << "\n\n";
-      exit(1);
-    }
-    assert(next_node != nullptr); 		  	
+  	Node* next_node = curr_node -> succ -> right; 		  	
   	while(next_node -> key <= k) {
-
-      assert(next_node != nullptr);   
   		while(next_node -> key != INT_MAX && next_node -> tower_root -> succ -> mark) {
   		  std::tuple<Node*, bool, bool> tup = TryFlagNode(curr_node, next_node);
   		  curr_node = std::get<0>(tup);
   		  if(std::get<1>(tup)) {
-  		  	HelpFlagged(curr_node, next_node);
+          HelpFlagged(curr_node, next_node);
   		  }
   		  next_node = curr_node -> succ -> right;
   		}
+
   		if(next_node -> key <= k) {
   			curr_node = next_node;
   			next_node = curr_node -> succ -> right;
@@ -350,49 +335,38 @@ private:
 
 
   std::pair<Node*, Node*> InsertNode(Node* newNode, Node* prev_node, Node* next_node) {
-    assert(prev_node != nullptr);
-    assert(newNode != nullptr);
+    
   	if(prev_node -> key == newNode -> key) {
   		return std::make_pair(prev_node, nullptr);
   	}
   	while(true) {
-      assert(prev_node != nullptr);
   		Succ* prev_succ = prev_node -> succ;
   		if(prev_succ -> flag) {
   			HelpFlagged(prev_node, prev_succ -> right);
   		}
   		else {
-        assert(newNode != nullptr);
   			newNode -> succ = new Succ(next_node, 0, 0);
   			Succ expectedSucc(next_node, 0, 0);
   			Succ newSucc(newNode, 0, 0);
-        assert(prev_node != nullptr);
   			bool success = prev_node -> succ -> cas(newSucc, expectedSucc);
   			if(success) {
   				return std::make_pair(prev_node, newNode);
   			}
   			else {
-          assert(prev_node != nullptr);
   				if(!(prev_node -> succ -> flag) && prev_node -> succ -> mark) {
   					HelpFlagged(prev_node, expectedSucc.right);
   				}
-
-          assert(prev_node != nullptr);
   				while(prev_node -> succ -> mark) {
   					prev_node = prev_node -> back_link;
-            assert(prev_node != nullptr);
   				}
   			}
   		}
-      assert(newNode != nullptr);
       std::pair<Node*, Node*> nodePair = SearchRight(newNode -> key, prev_node);
       prev_node = nodePair.first;
       next_node = nodePair.second;
 
-      assert(prev_node != nullptr);
 
-      assert(next_node != nullptr);
-  		if(prev_node -> key == next_node -> key) {
+  		if(prev_node -> key == newNode -> key) {
   			return std::pair<Node*, Node*>(prev_node, nullptr);
   		}
   	}
@@ -423,6 +397,9 @@ private:
   }
 
   void HelpFlagged(Node* prev_node, Node* del_node) {
+    if(del_node == nullptr) {
+      return;
+    }
   	del_node -> back_link = prev_node;
   	if(!(del_node -> succ -> mark)) {
   		TryMark(del_node);
@@ -445,7 +422,7 @@ private:
 
 void* producer(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 300; i++) {
+  for(int i = 0; i < 100000; i++) {
   	sl.Insert_SL(i);
   	if(i % 10 == 0) {
   		usleep(5);
@@ -455,9 +432,8 @@ void* producer(void* ptr) {
 }
 
 void* consumer(void* ptr) {
-
   SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 300; i++) {
+  for(int i = 0; i < 100000; i++) {
   	sl.Delete_SL(i);
   	if(i % 10 == 0) {
   		usleep(5);
@@ -468,7 +444,7 @@ void* consumer(void* ptr) {
 
 void* inspector(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 300; i++) {
+  for(int i = 0; i < 100000; i++) {
   	sl.Search_SL(i);
   	if(i % 10 == 0) {
   		usleep(5);
@@ -477,66 +453,16 @@ void* inspector(void* ptr) {
   return nullptr;
 }
 
-void spawn1() {
-  SkipList* sl = new SkipList(10);
-
-  pthread_t pthreads[3];
-  pthread_create(pthreads, NULL, producer, (void*) sl);
-  pthread_create(pthreads + 1, NULL, producer, (void*) sl);
-  pthread_create(pthreads + 2, NULL, producer, (void*) sl);
-  int i = pthread_join(pthreads[0], NULL);
-  i += pthread_join(pthreads[1], NULL);
-  i += pthread_join(pthreads[2], NULL);
-  /*for(int i = 0; i < 300; i++) {
-    Node* node = sl -> Search_SL(i);
-    assert(node -> key == i);
-  }*/
-  //sl -> printSLRough();
-}
-
-void spawn2() {
-  SkipList* sl = new SkipList(10);
-  pthread_t pthreads[3];
-  pthread_create(pthreads, NULL, producer, (void*) sl);
-  pthread_create(pthreads + 1, NULL, consumer, (void*) sl);
-  pthread_create(pthreads + 2, NULL, inspector, (void*) sl);
-  pthread_join(pthreads[0], NULL);
-  pthread_join(pthreads[1], NULL);
-  pthread_join(pthreads[2], NULL);
-  sl -> printSLRough();
-}
-
-void* tester(void* ptr) {
-  SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 300; i++) {
-    sl.Insert_SL(i % 30);
-    if(i % 10 == 0) {
-      usleep(5);
-    }
-  }
-  return nullptr;
-}
-
-void spawn3() {
-  SkipList* sl = new SkipList(10);
-
-  pthread_t pthreads[3];
-  pthread_create(pthreads, NULL, tester, (void*) sl);
-  pthread_create(pthreads + 1, NULL, tester, (void*) sl);
-  pthread_create(pthreads + 2, NULL, tester, (void*) sl);
-  int i = pthread_join(pthreads[0], NULL);
-  i += pthread_join(pthreads[1], NULL);
-  i += pthread_join(pthreads[2], NULL);
-}
-
-
 int main() {
-  spawn3();
-  /*
-  SkipList sl(5);
-  sl.Insert_SL(10);
-  sl.Insert_SL(20);
-  sl.Insert_SL(30);
-  sl.printSLFine();
-  */
+  SkipList* sl = new SkipList(10);
+  pthread_t pthreads[15];
+  for(int i = 0; i < 15; i++) {
+    int modi = i % 3;
+    pthread_create(pthreads + i, nullptr,
+      modi == 0 ? producer : (modi == 1 ? consumer : inspector), (void*) sl);    
+  }
+  for(int i = 0; i < 15; i++) {
+    pthread_join(pthreads[i], nullptr);
+  }
+  std::cout << "success" << "\n";
 }
