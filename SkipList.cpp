@@ -54,7 +54,7 @@ struct Succ {
 			mark = m;
 		}
 
-		bool cas(Succ const& newSucc, Succ const& expectedSucc) {
+		 bool cas(Succ const& newSucc, Succ const& expectedSucc) {
       bool result;
       __asm__ __volatile__ (
           "lock cmpxchg16b %1\n\t"
@@ -184,6 +184,7 @@ public:
   }
 
   void printSLRough() {
+    pthread_mutex_lock(&lock);
     Node* curr = head;
     while(curr -> up != curr) {
       curr = curr -> up;
@@ -201,9 +202,11 @@ public:
       std::cout << std::endl;
     }
     std::cout << std::endl;
+    pthread_mutex_unlock(&lock);
   }
 
   void printSLFine() {
+    pthread_mutex_lock(&lock);
     Node* curr = head;
     while(curr -> up != curr) {
       curr = curr -> up;
@@ -222,9 +225,11 @@ public:
       std::cout << std::endl;
     }
     std::cout << std::endl;
+    pthread_mutex_unlock(&lock);
   }
 
   void printSLFlagMark() {
+    pthread_mutex_lock(&lock);
     Node* curr = head;
     while(curr -> up != curr) {
       curr = curr -> up;
@@ -243,6 +248,7 @@ public:
       std::cout << std::endl;
     }
     std::cout << std::endl;
+    pthread_mutex_unlock(&lock);
   }
 
 private:
