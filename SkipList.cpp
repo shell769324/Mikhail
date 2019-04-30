@@ -428,7 +428,7 @@ private:
 
 void* producer(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 300; i++) {
+  for(int i = 0; i < 100000; i++) {
   	sl.Insert_SL(i);
   	if(i % 10 == 0) {
   		usleep(5);
@@ -439,7 +439,7 @@ void* producer(void* ptr) {
 
 void* consumer(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 300; i++) {
+  for(int i = 0; i < 100000; i++) {
   	sl.Delete_SL(i);
   	if(i % 10 == 0) {
   		usleep(5);
@@ -450,7 +450,7 @@ void* consumer(void* ptr) {
 
 void* inspector(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 300; i++) {
+  for(int i = 0; i < 100000; i++) {
   	sl.Search_SL(i);
   	if(i % 10 == 0) {
   		usleep(5);
