@@ -10,6 +10,7 @@
 
 struct Succ;
 struct Node;
+pthread_mutex_t lock;
 
 std::string sub(Node* address) {
 	if(address == nullptr) {
@@ -239,8 +240,8 @@ public:
       std::cout << maxLvl << ": ";
       Node* goRight = curr;
       while(goRight != nullptr) {
-        std::cout << "[" << goRight -> key << ", " << goRight -> succ -> mark << ", ";
-        std::cout << goRight -> succ -> flag << "] ";
+        std::cout << "[" << sub(goRight) << ", " << goRight -> key << ", ";
+        std::cout << goRight -> succ -> mark << ", " << goRight -> succ -> flag << "] ";
         goRight = goRight -> succ -> right;
       }
       curr = curr -> down;
@@ -402,9 +403,6 @@ private:
   }
 
   void HelpFlagged(Node* prev_node, Node* del_node) {
-    if(del_node == nullptr) {
-      return;
-    }
   	del_node -> back_link = prev_node;
   	if(!(del_node -> succ -> mark)) {
   		TryMark(del_node);
@@ -413,6 +411,9 @@ private:
   }
 
   void TryMark(Node* del_node) {
+    if(del_node -> key == INT_MAX) {
+      return;
+    }
   	do {
   		Node* next_node = del_node -> succ -> right;
   		Succ expectedSucc(next_node, 0, 0);
@@ -427,7 +428,7 @@ private:
 
 void* producer(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 100000; i++) {
+  for(int i = 0; i < 300; i++) {
   	sl.Insert_SL(i);
   	if(i % 10 == 0) {
   		usleep(5);
@@ -438,7 +439,7 @@ void* producer(void* ptr) {
 
 void* consumer(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 100000; i++) {
+  for(int i = 0; i < 300; i++) {
   	sl.Delete_SL(i);
   	if(i % 10 == 0) {
   		usleep(5);
@@ -449,7 +450,7 @@ void* consumer(void* ptr) {
 
 void* inspector(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
-  for(int i = 0; i < 100000; i++) {
+  for(int i = 0; i < 300; i++) {
   	sl.Search_SL(i);
   	if(i % 10 == 0) {
   		usleep(5);
