@@ -28,71 +28,48 @@ void end(std::string place) {
 	std::cout << "end: " << place << "\n";
 }
 
+bool isMarkedRef(Node* node) {
+  return ((long) node & 0x1L) == 0x1L;
+}
 
-struct Succ {
-	union {
-    uint64_t ui[2];
-    struct {
-    	Node* right;
-			union {
-				struct {
-  		  	int flag;
-			    int mark;
-				};
-				size_t together;
-			};
-    } __attribute__ (( __aligned__( 16 ) ));
-	};
-	public:
-		Succ(Node* r) {
-			right = r;
-			flag = 0;
-			mark = 0;
-		}
-		Succ(Node* r, int m, int f) {
-			right = r;
-			flag = f;
-			mark = m;
-		}
+bool isFlaggedRef(Node* node) {
+  return ((long) node & 0x2L) == 0x2L;
+}
 
-		 bool cas(Succ const& newSucc, Succ const& expectedSucc) {
-      bool result;
-      __asm__ __volatile__ (
-          "lock cmpxchg16b %1\n\t"
-          "setz %0\n"
-          : "=q" ( result )
-           ,"+m" ( ui )
-          : "a" ( expectedSucc.right ), "d" ( expectedSucc.together )
-           ,"b" ( newSucc.right ), "c" ( newSucc.together )
-          : "cc"
-      );
-      return result;
-    }
-		bool operator==(const Succ& other) const {
-	  	return right == other.right &&
-	  				 together == other.together;
-	  }
-};
+Node* markRef(Node* node) {
+  return (Node*) ((long) node | 0x1L);
+}
+
+Node* flagRef(Node* node) {
+  return (Node*) ((long) node | 0x2L);
+}
+
+Node* unBothRef(Node* node) {
+  return (Node*) ((long) node & ~0x3L);
+}
+
 
 struct Node {
-	Succ* succ;
-	int key;
+	Node* right;
 	Node* down;
 	union {
 		Node* back_link;
 		Node* up;
 	};
 	Node* tower_root;
+  int key;
   public:
   	Node(int k) {
   		key = k;
-  		succ = new Succ(nullptr);
+      right = nullptr;
+      down = nullptr;
+      tower_root = nullptr;
   	}
   	Node(int k, Node* d, Node* towerRoot) {
   		key = k;
   		down = d;
   		tower_root = towerRoot;
-  		succ = new Succ(nullptr);
+      right = nullptr;
   	}
 };
 
@@ -100,18 +77,18 @@ class SkipList {
 public:
 
 	SkipList(int maxLvl) {
-		head = new Node(INT_MIN, nullptr, nullptr);
+		head = new Node(INT_MIN);
 		Node* curr = head;
 		maxLevel = maxLvl;
 		for(int i = 1; i < maxLevel; i++) {
-			Node* next = new Node(INT_MIN, nullptr, nullptr);
+			Node* next = new Node(INT_MIN);
 			curr -> up = next;
-			curr -> succ = new Succ(new Node(INT_MAX));
+			curr -> right = new Node(INT_MAX);
 			next -> down = curr;
 			curr = next;
 		}
 		curr -> up = curr;
-		curr -> succ = new Succ(new Node(INT_MAX));
+		curr -> right = new Node(INT_MAX);
 		seed = 0;
 	}
 
@@ -133,7 +110,7 @@ public:
   	if(prev_node -> key == k) {
   		return nullptr;
   	}
-  	Node* newRNode = new Node(k, nullptr, nullptr);
+  	Node* newRNode = new Node(k);
   	newRNode -> tower_root = newRNode;
   	Node* newNode = newRNode;
   	int tH = 1;
@@ -149,7 +126,7 @@ public:
   			delete newNode;
   			return nullptr;
   		}
-  		if(newRNode -> succ -> mark) {
+  		if(isMarkedRef(newRNode -> right)) {
   			if((result == newNode) && (newNode != newRNode)) {
   				DeleteNode(prev_node, newNode);
   			}
@@ -184,74 +161,6 @@ public:
   	return del_node;
   }
 
-  void printSLRough() {
-    pthread_mutex_lock(&lock);
-    Node* curr = head;
-    while(curr -> up != curr) {
-      curr = curr -> up;
-    }
-    int maxLvl = maxLevel - 1;
-    while(curr != nullptr) {
-      std::cout << maxLvl << ": ";
-      Node* goRight = curr;
-      while(goRight != nullptr) {
-        std::cout << goRight -> key << " ";
-        goRight = goRight -> succ -> right;
-      }
-      curr = curr -> down;
-      maxLvl--;
-      std::cout << std::endl;
-    }
-    std::cout << std::endl;
-    pthread_mutex_unlock(&lock);
-  }
-
-  void printSLFine() {
-    pthread_mutex_lock(&lock);
-    Node* curr = head;
-    while(curr -> up != curr) {
-      curr = curr -> up;
-    }
-    int maxLvl = maxLevel - 1;
-    while(curr != nullptr) {
-      std::cout << maxLvl << ": ";
-      Node* goRight = curr;
-      while(goRight != nullptr) {
-        std::cout << "[" << sub(goRight) << ", " << goRight -> key << ", ";
-        std::cout << sub(goRight -> succ -> right) << ", " << sub(goRight -> down) << "] ";
-        goRight = goRight -> succ -> right;
-      }
-      curr = curr -> down;
-      maxLvl--;
-      std::cout << std::endl;
-    }
-    std::cout << std::endl;
-    pthread_mutex_unlock(&lock);
-  }
-
-  void printSLFlagMark() {
-    pthread_mutex_lock(&lock);
-    Node* curr = head;
-    while(curr -> up != curr) {
-      curr = curr -> up;
-    }
-    int maxLvl = maxLevel - 1;
-    while(curr != nullptr) {
-      std::cout << maxLvl << ": ";
-      Node* goRight = curr;
-      while(goRight != nullptr) {
-        std::cout << "[" << sub(goRight) << ", " << goRight -> key << ", ";
-        std::cout << goRight -> succ -> mark << ", " << goRight -> succ -> flag << "] ";
-        goRight = goRight -> succ -> right;
-      }
-      curr = curr -> down;
-      maxLvl--;
-      std::cout << std::endl;
-    }
-    std::cout << std::endl;
-    pthread_mutex_unlock(&lock);
-  }
-
 private:
 
 	Node* head; // the bottom of the head tower
@@ -282,7 +191,7 @@ private:
   	Node* curr_node = head;
   	int curr_v = 1;
 
-  	while(curr_node -> up -> succ -> right -> key != INT_MAX || curr_v < v) {
+  	while(unBothRef(curr_node -> up -> right) -> key != INT_MAX || curr_v < v) {
   		curr_node = curr_node -> up;
   		curr_v++;
   	}
@@ -291,20 +200,20 @@ private:
   }
 
   std::pair<Node*, Node*> SearchRight(int k, Node* curr_node) {
-  	Node* next_node = curr_node -> succ -> right; 		  	
+  	Node* next_node = unBothRef(curr_node -> right);
   	while(next_node -> key <= k) {
-  		while(next_node -> key != INT_MAX && next_node -> tower_root -> succ -> mark) {
+  		while(next_node -> key != INT_MAX && isMarkedRef(next_node -> tower_root -> right)) {
   		  std::tuple<Node*, bool, bool> tup = TryFlagNode(curr_node, next_node);
   		  curr_node = std::get<0>(tup);
   		  if(std::get<1>(tup)) {
           HelpFlagged(curr_node, next_node);
   		  }
-  		  next_node = curr_node -> succ -> right;
+  		  next_node = unBothRef(curr_node -> right);
   		}
 
   		if(next_node -> key <= k) {
   			curr_node = next_node;
-  			next_node = curr_node -> succ -> right;
+  			next_node = unBothRef(curr_node -> right);
   		}
   	}
   	return std::make_pair(curr_node, next_node);
@@ -312,20 +221,20 @@ private:
 
   // The second element will true if it has not been logically deleted
   std::tuple<Node*, bool, bool> TryFlagNode(Node* prev_node, Node* target_node) {
-  	Succ t01(target_node, 0, 1);
-  	Succ t00(target_node, 0, 0);
+    Node* flagged_target_node = flagRef(target_node);
   	while(true) {
-  		if(*(prev_node -> succ) == t01) {
+  		if(isFlaggedRef(prev_node -> right)) {
   			return std::make_tuple(prev_node, true, false);
   		}
-  		bool success = prev_node -> succ -> cas(t01, t00);
-  		if(success) {
+
+  		if(__sync_bool_compare_and_swap(&(prev_node -> right),
+          target_node, flagged_target_node)) {
   			return std::make_tuple(prev_node, true, true);
   		}
-  		if(*(prev_node -> succ) == t01) {
+  		if(isFlaggedRef(prev_node -> right)) {
   			return std::make_tuple(prev_node, true, false);
   		}
-  		while(prev_node -> succ -> mark) {
+  		while(isMarkedRef(prev_node -> right)) {
   			prev_node = prev_node -> back_link;
   		}
   		std::pair<Node*, Node*> nodePair = SearchRight(target_node -> key - 1, prev_node);
@@ -346,31 +255,27 @@ private:
   		return std::make_pair(prev_node, nullptr);
   	}
   	while(true) {
-  		Succ* prev_succ = prev_node -> succ;
-  		if(prev_succ -> flag) {
-  			HelpFlagged(prev_node, prev_succ -> right);
+  		Node* right = prev_node -> right;
+  		if(isFlaggedRef(right)) {
+  			HelpFlagged(prev_node, unBothRef(right));
   		}
   		else {
-  			newNode -> succ = new Succ(next_node, 0, 0);
-  			Succ expectedSucc(next_node, 0, 0);
-  			Succ newSucc(newNode, 0, 0);
-  			bool success = prev_node -> succ -> cas(newSucc, expectedSucc);
-  			if(success) {
+  			newNode -> right = next_node;
+  			if(__sync_bool_compare_and_swap(
+          &(prev_node -> right), next_node, newNode)) {
   				return std::make_pair(prev_node, newNode);
   			}
-  			else {
-  				if(prev_node -> succ -> flag && !(prev_node -> succ -> mark)) {
-  					HelpFlagged(prev_node, expectedSucc.right);
-  				}
-  				while(prev_node -> succ -> mark) {
-  					prev_node = prev_node -> back_link;
-  				}
+        Node* curr_right = prev_node -> right;
+  			if(isFlaggedRef(curr_right) && !isMarkedRef(curr_right)) {
+  				HelpFlagged(prev_node, next_node);
+  			}
+  			while(isMarkedRef(prev_node -> right)) {
+  				prev_node = prev_node -> back_link;
   			}
   		}
       std::pair<Node*, Node*> nodePair = SearchRight(newNode -> key, prev_node);
       prev_node = nodePair.first;
       next_node = nodePair.second;
-
   		if(prev_node -> key == newNode -> key) {
   			return std::pair<Node*, Node*>(prev_node, nullptr);
   		}
@@ -395,15 +300,15 @@ private:
   }
 
   void HelpMarked(Node* prev_node, Node* del_node) {
-  	Node* next_node = del_node -> succ -> right;
-  	Succ expectedSucc(del_node, 0, 1);
-  	Succ newSucc(next_node, 0, 0);
-  	prev_node -> succ -> cas(newSucc, expectedSucc);
+  	Node* next_node = unBothRef(del_node -> right);
+    Node* flagged_del_node = flagRef(del_node);
+  	__sync_bool_compare_and_swap(&(prev_node -> right),
+      flagged_del_node, next_node);
   }
 
   void HelpFlagged(Node* prev_node, Node* del_node) {
   	del_node -> back_link = prev_node;
-  	if(!(del_node -> succ -> mark)) {
+  	if(!isMarkedRef(del_node -> right)) {
   		TryMark(del_node);
   	}
   	HelpMarked(prev_node, del_node);
@@ -414,14 +319,15 @@ private:
       return;
     }
   	do {
-  		Node* next_node = del_node -> succ -> right;
-  		Succ expectedSucc(next_node, 0, 0);
-  		Succ newSucc(next_node, 1, 0);
-  		bool success = del_node -> succ -> cas(newSucc, expectedSucc);
-  		if(!success && !(del_node -> succ -> mark) && del_node -> succ -> flag) {
-  			HelpFlagged(del_node, del_node -> succ -> right);
+  		Node* next_node = unBothRef(del_node -> right);
+      Node* marked_next_node = markRef(next_node);
+  		bool success = __sync_bool_compare_and_swap(
+       &(del_node -> right), next_node, marked_next_node);
+      Node* del_right = del_node -> right;
+  		if(!success && !isMarkedRef(del_right) && isFlaggedRef(del_right)) {
+  			HelpFlagged(del_node, unBothRef(del_right));
   		}
-  	} while(!(del_node -> succ -> mark));
+  	} while(!isMarkedRef(del_node -> right));
   }
 };
 
