@@ -359,7 +359,7 @@ private:
   				return std::make_pair(prev_node, newNode);
   			}
   			else {
-  				if(!(prev_node -> succ -> flag) && prev_node -> succ -> mark) {
+  				if(prev_node -> succ -> flag && !(prev_node -> succ -> mark)) {
   					HelpFlagged(prev_node, expectedSucc.right);
   				}
   				while(prev_node -> succ -> mark) {
@@ -370,7 +370,6 @@ private:
       std::pair<Node*, Node*> nodePair = SearchRight(newNode -> key, prev_node);
       prev_node = nodePair.first;
       next_node = nodePair.second;
-
 
   		if(prev_node -> key == newNode -> key) {
   			return std::pair<Node*, Node*>(prev_node, nullptr);
@@ -419,7 +418,7 @@ private:
   		Succ expectedSucc(next_node, 0, 0);
   		Succ newSucc(next_node, 1, 0);
   		bool success = del_node -> succ -> cas(newSucc, expectedSucc);
-  		if(!success && !(del_node -> succ -> flag) && del_node -> succ -> mark) {
+  		if(!success && !(del_node -> succ -> mark) && del_node -> succ -> flag) {
   			HelpFlagged(del_node, del_node -> succ -> right);
   		}
   	} while(!(del_node -> succ -> mark));
