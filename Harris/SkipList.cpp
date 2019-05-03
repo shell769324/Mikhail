@@ -29,63 +29,39 @@ void end(std::string place) {
   std::cout << "end: " << place << "\n";
 }
 
+bool isMarkedRef(Node* node) {
+  return ((long) node & 0x1L) == 0x1L;
+}
 
-struct Succ {
-  union {
-    uint64_t ui[2];
-    struct {
-      Node* right;
-      uint64_t mark;
-    } __attribute__ (( __aligned__( 16 ) ));
-  };
-  public:
-    Succ(Node* r) {
-      right = r;
-      mark = 0;
-    }
-    Succ(Node* r, uint64_t m) {
-      right = r;
-      mark = m;
-    }
+Node* markRef(Node* node) {
+  return (Node*) ((long) node | 0x1L);
+}
 
-    bool cas(Succ const& newSucc, Succ const& expectedSucc) {
-      bool result;
-      __asm__ __volatile__ (
-          "lock cmpxchg16b %1\n\t"
-          "setz %0\n"
-          : "=q" ( result )
-           ,"+m" ( ui )
-          : "a" ( expectedSucc.right ), "d" ( expectedSucc.mark )
-           ,"b" ( newSucc.right ), "c" ( newSucc.mark )
-          : "cc"
-      );
-      return result;
-    }
-    bool operator==(const Succ& other) const {
-      return right == other.right &&
-             mark == other.mark;
-    }
-};
+Node* unmarkRef(Node* node) {
+  return (Node*) ((long) node & ~0x1L);
+}
 
 struct Node {
-  Succ* succ;
-  int key;
+  Node* right;
   Node* down;
   union {
     Node* back_link;
     Node* up;
   };
   Node* tower_root;
+  int key;
   public:
     Node(int k) {
       key = k;
-      succ = new Succ(nullptr);
+      right = nullptr;
+      down = nullptr;
+      tower_root = nullptr;
     }
     Node(int k, Node* d, Node* towerRoot) {
       key = k;
       down = d;
       tower_root = towerRoot;
-      succ = new Succ(nullptr);
+      right = nullptr;
     }
 };
 
@@ -93,18 +69,18 @@ class SkipList {
 public:
 
   SkipList(int maxLvl) {
-    head = new Node(INT_MIN, nullptr, nullptr);
+    head = new Node(INT_MIN);
     Node* curr = head;
     maxLevel = maxLvl;
     for(int i = 1; i < maxLevel; i++) {
-      Node* next = new Node(INT_MIN, nullptr, nullptr);
+      Node* next = new Node(INT_MIN);
       curr -> up = next;
-      curr -> succ = new Succ(new Node(INT_MAX, nullptr, nullptr));
+      curr -> right = new Node(INT_MAX);
       next -> down = curr;
       curr = next;
     }
     curr -> up = curr;
-    curr -> succ = new Succ(new Node(INT_MAX));
+    curr -> right = new Node(INT_MAX);
     seed = 0;
   }
 
@@ -126,7 +102,7 @@ public:
     if(prev_node -> key == k) {
       return nullptr;
     }
-    Node* newRNode = new Node(k, nullptr, nullptr);
+    Node* newRNode = new Node(k);
     newRNode -> tower_root = newRNode;
     Node* newNode = newRNode;
     int tH = 1;
@@ -142,7 +118,7 @@ public:
         delete newNode;
         return nullptr;
       }
-      if(newRNode -> succ -> mark) {
+      if(isMarkedRef(newRNode -> right)) {
         if((result == newNode) && (newNode != newRNode)) {
           DeleteNode(prev_node, newNode);
         }
@@ -177,7 +153,6 @@ public:
     return del_node;
   }
 
-
   void printSLRough() {
     lk.lock();
     Node* curr = head;
@@ -190,7 +165,7 @@ public:
       Node* goRight = curr;
       while(goRight != nullptr) {
         std::cout << goRight -> key << " ";
-        goRight = goRight -> succ -> right;
+        goRight = unmarkRef(goRight -> right);
       }
       curr = curr -> down;
       maxLvl--;
@@ -211,8 +186,8 @@ public:
       Node* goRight = curr;
       while(goRight != nullptr) {
         std::cout << "[" << sub(goRight) << ", " << goRight -> key << ", ";
-        std::cout << sub(goRight -> succ -> right) << ", " << sub(goRight -> down) << "] ";
-        goRight = goRight -> succ -> right;
+        std::cout << sub(goRight -> right) << ", " << sub(goRight -> down) << "] ";
+        goRight = unmarkRef(goRight -> right);
       }
       curr = curr -> down;
       maxLvl--;
@@ -233,36 +208,13 @@ public:
       while(goRight != nullptr) {
         std::cout << "[" << sub(goRight) << ", " << goRight -> key << ", ";
         std::cout << sub(goRight -> tower_root) << "] ";
-        goRight = goRight -> succ -> right;
+        goRight = unmarkRef(goRight -> right);
       }
       curr = curr -> down;
       maxLvl--;
       std::cout << std::endl;
     }
     std::cout << std::endl;
-  }
-
-  void printSLMark() {
-    lk.lock();
-    Node* curr = head;
-    while(curr -> up != curr) {
-      curr = curr -> up;
-    }
-    int maxLvl = maxLevel - 1;
-    while(curr != nullptr) {
-      std::cout << maxLvl << ": ";
-      Node* goRight = curr;
-      while(goRight != nullptr) {
-        std::cout << "[" << sub(goRight) << ", " << goRight -> key << ", ";
-        std::cout << goRight -> succ -> mark  << "] ";
-        goRight = goRight -> succ -> right;
-      }
-      curr = curr -> down;
-      maxLvl--;
-      std::cout << std::endl;
-    }
-    std::cout << std::endl;
-    lk.unlock();
   }
 
   // No duplicate nodes
@@ -273,16 +225,16 @@ public:
       Node* goRight = curr;
       while(goRight != nullptr) {
         if(goRight -> key != INT_MIN && goRight -> key != INT_MAX) {
-          if(goRight -> tower_root -> succ -> mark) {
+          if(isMarkedRef(goRight -> tower_root -> right)) {
             return false;
           }
         }
-        if(goRight -> succ -> right != nullptr) {
-          if(goRight -> key >= goRight -> succ -> right -> key) {
+        if(unmarkRef(goRight -> right) != nullptr) {
+          if(goRight -> key >= unmarkRef(goRight -> right) -> key) {
             return false;
           }
         }
-        goRight = goRight -> succ -> right;
+        goRight = unmarkRef(goRight -> right);
       }
       curr = curr -> down;
     }
@@ -319,7 +271,7 @@ private:
   std::pair<Node*, int> FindStart_SL(int v) {
     Node* curr_node = head;
     int curr_v = 1;
-    while(curr_node -> up -> succ -> right -> key != INT_MAX || curr_v < v) {
+    while(unmarkRef(curr_node -> up -> right) -> key != INT_MAX || curr_v < v) {
       curr_node = curr_node -> up;
       curr_v++;
     }
@@ -327,23 +279,23 @@ private:
   }
 
   std::pair<Node*, Node*> SearchRight(int k, Node* curr_node) {
-    Node* next_node = curr_node -> succ -> right;
+    Node* next_node = unmarkRef(curr_node -> right);
     while(next_node -> key <= k) {
       // If the next node is not tail node and the next node's tower root
       // has been deleted, mark next node and attemp to delete it
-      while(next_node -> key != INT_MAX && next_node -> tower_root -> succ -> mark) {
+      while(next_node -> key != INT_MAX && isMarkedRef(next_node -> tower_root -> right)) {
         next_node -> back_link = curr_node;
         TryMark(next_node);
         HelpMarked(curr_node, next_node);
         // If the current node is marked, back_linke
-        while(curr_node -> succ -> mark) {
+        while(isMarkedRef(curr_node -> right)) {
           curr_node = curr_node -> back_link;
         }
-        next_node = curr_node -> succ -> right;
+        next_node = unmarkRef(curr_node -> right);
       }
       if(next_node -> key <= k) {
         curr_node = next_node;
-        next_node = curr_node -> succ -> right;
+        next_node = unmarkRef(curr_node -> right);
       }
     }
     return std::make_pair(curr_node, next_node);
@@ -357,18 +309,16 @@ private:
     }
     while(true) {
       // Set the successor of the new node to the next node
-      newNode -> succ = new Succ(next_node, 0);
-      Succ expectedSucc(next_node, 0);
-      Succ newSucc(newNode, 0);
+      newNode -> right = next_node;
       // Attemp to point the prev_node to the new node
-      if(prev_node -> succ -> cas(newSucc, expectedSucc)) {
+      if(__sync_bool_compare_and_swap(&(prev_node -> right), next_node, newNode)) {
         // If successful, insertion is completed
         return std::make_pair(prev_node, newNode);
       }
       // Otherwise, prev_node may get a new successor or
       // prev_node is being deleted. Use back_link to get to
       // the nearest unmarked node
-      while(prev_node -> succ -> mark) {
+      while(isMarkedRef(prev_node -> right)) {
         prev_node = prev_node -> back_link;
       }
       // Search the key in the chain starting at the new prev_node
@@ -407,16 +357,14 @@ private:
   void HelpMarked(Node* prev_node, Node* del_node) {
     while(true) {
       // Get the next node of the node to delete
-      Node* next_node = del_node -> succ -> right;
-      Succ expectedSucc(del_node, 0);
-      Succ newSucc(next_node, 0);
+      Node* next_node = unmarkRef(del_node -> right);
       // Try to point prev_node to the next node
-      if(prev_node -> succ -> cas(newSucc, expectedSucc)) {
+      if(__sync_bool_compare_and_swap(&(prev_node -> right), del_node, next_node)) {
         return;
       }
       // If the prev node is mark, go back to the last node that
       // is not mark
-      while(prev_node -> key != INT_MIN && prev_node -> succ -> mark) {
+      while(prev_node -> key != INT_MIN && isMarkedRef(prev_node -> right)) {
         prev_node = prev_node -> back_link;
       }
       // Search the del_node again
@@ -434,17 +382,16 @@ private:
   bool TryMark(Node* del_node) {
     do {
       // Get the next node
-      Node* next_node = del_node -> succ -> right;
-      Succ expectedSucc(next_node, 0);
-      Succ newSucc(next_node, 1);
+      Node* next_node = unmarkRef(del_node -> right);
+      Node* marked_next_node = markRef(next_node);
       // Attempt to mark the succ field
-      if(del_node -> succ -> cas(newSucc, expectedSucc)) {
+      if(__sync_bool_compare_and_swap(&(del_node -> right), next_node, marked_next_node)) {
         // If marking succeeded, return true to signify that
         // this function call marks the del_node
         return true;
       }
       // If del_node has been marked by some other thread
-    } while(!(del_node -> succ -> mark));
+    } while(!isMarkedRef(del_node -> right));
     // del_node is logically deleted by an eariler deletion
     // by that thread
     return false;
