@@ -364,6 +364,7 @@ void* inspector(void* ptr) {
   return nullptr;
 }
 
+/*
 int main() {
   SkipList* sl = new SkipList(10);
   pthread_t pthreads[15];
@@ -377,3 +378,4 @@ int main() {
   }
   std::cout << "success" << "\n";
 }
+*/
