@@ -8,6 +8,8 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <mutex>
+#include <iomanip>
+#include <random>
 
 struct Succ;
 struct Node;
@@ -72,6 +74,9 @@ public:
     head = new Node(INT_MIN);
     Node* curr = head;
     maxLevel = maxLvl;
+    std::random_device rd;
+    gen = std::mt19937(rd());
+    d = std::bernoulli_distribution(0.5);
     for(int i = 1; i < maxLevel; i++) {
       Node* next = new Node(INT_MIN);
       curr -> up = next;
@@ -106,7 +111,7 @@ public:
     newRNode -> tower_root = newRNode;
     Node* newNode = newRNode;
     int tH = 1;
-    while(getRand() && (tH <= maxLevel - 2)) {
+    while(d(gen) && (tH <= maxLevel - 2)) {
       tH++;
     }
     int curr_v = 1;
@@ -246,11 +251,8 @@ private:
   Node* head; // the bottom of the head tower
   int maxLevel;
   int seed;
-
-  int getRand() {
-    seed = (733 * seed + 181) % 1024;
-    return seed >= 512;
-  }
+  std::mt19937 gen;
+  std::bernoulli_distribution d;
 
   std::pair<Node*, Node*> SearchToLevel_SL(int k, int v) {
     // (curr_node, curr_v)
