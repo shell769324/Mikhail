@@ -6,9 +6,11 @@
 #include<thread>
 #include<vector>
 #include<algorithm>
-#include"pthread.c"
-//#define NUM_THREADS 1
+#include<pthread.h>
+#define PURE_SEARCH 0
+#define PURE_DELETE 1
 
+//Hogwello
 using  std::cout;
 using std::cin;
 using std::endl;
@@ -23,6 +25,8 @@ SkipList* skiplist;
 }threadArgs;
 
 int kInitHeadHeight =10;
+pthread_barrier_t mybarrier;
+
 
 void checkAdd(){
     int size = 10;
@@ -79,12 +83,12 @@ void* readFileAndProcess(void* argsptr){
         vector<int> values;
         int a, b;
         while(fin>>a>>b){
-            //cout<<a<<b<<endl;
+//            cout<<a<<b<<endl;
             ops.push_back(a);
             values.push_back(b);        
         }
-
-        pthread_barrier_t mybarrier;
+        //cout<<"Finished while loop : "<<thread_id<<endl;
+        //pthread_barrier_t mybarrier;
         pthread_barrier_wait(&mybarrier);
         double startTime = CycleTimer::currentSeconds();
             processTraceChunk(ops,values,skipList);
@@ -106,6 +110,7 @@ void processTrace(string filename,int num_threads,int work){
         //double times[num_threads];
         void* status[num_threads];
         SkipList* skipList = new SkipList(kInitHeadHeight);
+        pthread_barrier_init(&mybarrier, NULL, num_threads);
 
         for (int i=1; i<num_threads; i++){
             args[i].filename = "./files/"+filename+"_"+std::to_string(work)+"_"+std::to_string(i)+".txt";           
@@ -123,10 +128,61 @@ void processTrace(string filename,int num_threads,int work){
         for (int i=1; i<num_threads; i++)
             pthread_join(thread[i], &status[i]);
         double max_time = 0;
-        cout<<"Threads joined"<<endl;
+        //cout<<"Threads joined"<<endl;
         for(int i =0;i<num_threads;i++)
             max_time = std::max(max_time,*(double*)status[i]);   
         cout<<"total time taken=  "<<max_time<<endl;
+
+        
+        if (PURE_SEARCH){
+            cout<<"------------STARTING PURE SEARCH---------------"<<endl;
+            pthread_barrier_init(&mybarrier, NULL, num_threads);
+            for (int i=1; i<num_threads; i++){
+            args[i].filename = "./files/"+filename+"search_"+std::to_string(work)+"_"+std::to_string(i)+".txt";           
+            args[i].thread_id = i;
+            args[i].skiplist = skipList;
+            //cout<<"Starting thread "<<i<<endl;
+            pthread_create(&thread[i], NULL, readFileAndProcess,(void*)&args[i]);
+            }
+            //Parent thread setup Args and call
+            args[0].filename = "./files/"+filename+"search_"+std::to_string(work)+"_"+ std::to_string(0)+".txt";
+            cout<<args[0].filename;
+            args[0].thread_id = 0;
+            args[0].skiplist = skipList;
+            status[0] = readFileAndProcess((void*)&args[0]);
+            // wait for worker threads to complete
+            for (int i=1; i<num_threads; i++)
+                pthread_join(thread[i], &status[i]);
+            double max_time = 0;
+            //cout<<"Threads joined"<<endl;
+            for(int i =0;i<num_threads;i++)
+                max_time = std::max(max_time,*(double*)status[i]);   
+            cout<<"total time taken=  "<<max_time<<endl;
+        }
+        else if (PURE_DELETE){
+            cout<<"------------STARTING PURE DELETE---------------"<<endl;
+            pthread_barrier_init(&mybarrier, NULL, num_threads);
+            for (int i=1; i<num_threads; i++){
+            args[i].filename = "./files/"+filename+"delete_"+std::to_string(work)+"_"+std::to_string(i)+".txt";           
+            args[i].thread_id = i;
+            args[i].skiplist = skipList;
+            //cout<<"Starting thread "<<i<<endl;
+            pthread_create(&thread[i], NULL, readFileAndProcess,(void*)&args[i]);
+            }
+            //Parent thread setup Args and call
+            args[0].filename = "./files/"+filename+"delete_"+std::to_string(work)+"_"+ std::to_string(0)+".txt";
+            args[0].thread_id = 0;
+            args[0].skiplist = skipList;
+            status[0] = readFileAndProcess((void*)&args[0]);
+            // wait for worker threads to complete
+            for (int i=1; i<num_threads; i++)
+                pthread_join(thread[i], &status[i]);
+            double max_time = 0;
+            //cout<<"Threads joined"<<endl;
+            for(int i =0;i<num_threads;i++)
+                max_time = std::max(max_time,*(double*)status[i]);   
+            cout<<"total time taken=  "<<max_time<<endl;
+        }
     }
 
 int main(int argc, char *argv[]){
@@ -136,7 +192,7 @@ int main(int argc, char *argv[]){
 
     string filename = "random";
 
-    string scriptname = "../create_tests.py "+ std::to_string(num_threads)+" "+ std::to_string(work);
+    string scriptname = "./create_tests.py "+ std::to_string(num_threads)+" "+ std::to_string(work);
     string command = "python ";
     command += scriptname;
     //cout<<command<<endl;
@@ -158,6 +214,6 @@ int main(int argc, char *argv[]){
     double startTime = CycleTimer::currentSeconds();
     processTrace(filename,num_threads,work);
     double endTime = CycleTimer::currentSeconds();
-    cout<<"Time taken with "<<num_threads<<" threads is "<<endTime-startTime<<endl;
+    cout<<"Time taken with reading files is "<<num_threads<<" threads is "<<endTime-startTime<<endl;
     
 }

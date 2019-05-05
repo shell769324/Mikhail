@@ -16,9 +16,9 @@ def create_file(filename,max_lines):
     insert_set = []
     final = []
 
-    insert_pc = 0.4
-    search_pc = 0.5
-    delete_pc = 0.1
+    insert_pc = 1.0
+    search_pc = 0.0
+    delete_pc = 0.0
 
     correct_delete_pc = 0.5
     correct_search_pc = 0.5
@@ -61,8 +61,8 @@ def create_file(filename,max_lines):
             random_insert = np.random.randint(int_min,int_max)
             word = str(1) + ' ' + str(random_insert)
             no_insert+=1
-            if not  (random_insert in insert_set):
-                insert_set.append(random_insert)
+            '''if not  (random_insert in insert_set):
+                insert_set.append(random_insert)'''
             #print("inserting ",random_insert)
 
         elif op ==2:
@@ -100,17 +100,46 @@ def split_file(lineList,num_threads,max_lines):
             f.write(line+'\n')
         f.close()
         k+=1
-        
+
+def split_file_delete(lineList,num_threads,max_lines):
+    l = len(lineList)   
+    k=0 
+    for i in range(0,l,l//num_threads):
+        list_file= lineList[i:i+l//num_threads]
+        f = open("./files/"+filename+"delete_"+str(max_lines)+"_"+str(k)+".txt","w+")
+        for line in list_file:
+            f.write(line+'\n')
+        f.close()
+        k+=1
+def split_file_search(lineList,num_threads,max_lines):
+    l = len(lineList)   
+    k=0 
+    for i in range(0,l,l//num_threads):
+        list_file= lineList[i:i+l//num_threads]
+        f = open("./files/"+filename+"search_"+str(max_lines)+"_"+str(k)+".txt","w+")
+        for line in list_file:
+            f.write(line+'\n')
+        f.close()
+        k+=1
 
 
 if __name__ == "__main__":
     filename = "random"
     NUM_THREADS = int(sys.argv[1])
     MAX_LINES = int(sys.argv[2])
+    PURE_SEARCH = 1
+    PURE_DELETE = 0
     import os
     exists = os.path.isfile("./files/"+filename+"_"+str(MAX_LINES)+".txt")
     if not exists:
         create_file(filename,MAX_LINES)
     lineList = [line.rstrip('\n') for line in open("./files/"+filename+"_"+str(MAX_LINES)+".txt")]
     split_file(lineList,NUM_THREADS,MAX_LINES)
+    if PURE_DELETE==1:
+        lineList = [line.rstrip('\n') for line in open("./files/"+filename+"delete_"+str(MAX_LINES)+".txt")]
+        split_file_delete(lineList,NUM_THREADS,MAX_LINES)
+    elif PURE_SEARCH==1:
+        lineList = [line.rstrip('\n') for line in open("./files/"+filename+"search_"+str(MAX_LINES)+".txt")]
+        split_file_search(lineList,NUM_THREADS,MAX_LINES)
+        
     
