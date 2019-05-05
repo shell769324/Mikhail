@@ -86,7 +86,7 @@ public:
 
     std::random_device rd;
     gen = std::mt19937(rd());
-    d = std::bernoulli_distribution(0.25);
+    d = std::bernoulli_distribution(0.5);
 		for(int i = 1; i < maxLevel; i++) {
 			Node* next = new Node(INT_MIN);
 			curr -> up = next;
