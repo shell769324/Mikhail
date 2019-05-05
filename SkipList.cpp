@@ -7,6 +7,9 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <iomanip>
+#include <random>
+#include <map>
 
 struct Succ;
 struct Node;
@@ -80,6 +83,10 @@ public:
 		head = new Node(INT_MIN);
 		Node* curr = head;
 		maxLevel = maxLvl;
+
+    std::random_device rd;
+    gen = std::mt19937(rd());
+    d = std::bernoulli_distribution(0.25);
 		for(int i = 1; i < maxLevel; i++) {
 			Node* next = new Node(INT_MIN);
 			curr -> up = next;
@@ -114,7 +121,7 @@ public:
   	newRNode -> tower_root = newRNode;
   	Node* newNode = newRNode;
   	int tH = 1;
-  	while(getRand() && (tH <= maxLevel - 2)) {
+  	while(d(gen) && (tH <= maxLevel - 2)) {
   		tH++;
   	}
   	int curr_v = 1;
@@ -166,11 +173,8 @@ private:
 	Node* head; // the bottom of the head tower
 	int maxLevel;
 	int seed;
-
-	int getRand() {
-		seed = (733 * seed + 181) % 1024;
-		return seed >= 512;
-	}
+  std::mt19937 gen;
+  std::bernoulli_distribution d;
 
   std::pair<Node*, Node*> SearchToLevel_SL(int k, int v) {
   	// (curr_node, curr_v)
@@ -226,7 +230,6 @@ private:
   		if(isFlaggedRef(prev_node -> right)) {
   			return std::make_tuple(prev_node, true, false);
   		}
-
   		if(__sync_bool_compare_and_swap(&(prev_node -> right),
           target_node, flagged_target_node)) {
   			return std::make_tuple(prev_node, true, true);
@@ -335,9 +338,9 @@ void* producer(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
   for(int i = 0; i < 100000; i++) {
   	sl.Insert_SL(i);
-  	if(i % 10 == 0) {
+  	/*if(i % 10 == 0) {
   		usleep(5);
-  	}
+  	}*/
   }
   return nullptr;
 }
@@ -346,9 +349,9 @@ void* consumer(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
   for(int i = 0; i < 100000; i++) {
   	sl.Delete_SL(i);
-  	if(i % 10 == 0) {
+  	/*if(i % 10 == 0) {
   		usleep(5);
-  	}
+  	}*/
   }
   return nullptr;
 }
@@ -356,13 +359,14 @@ void* consumer(void* ptr) {
 void* inspector(void* ptr) {
   SkipList sl = *(SkipList*) ptr;
   for(int i = 0; i < 100000; i++) {
-  	sl.Search_SL(i);
+  	sl.Search_SL(i);/*
   	if(i % 10 == 0) {
   		usleep(5);
-  	}
+  	}*/
   }
   return nullptr;
 }
+
 
 int main() {
   SkipList* sl = new SkipList(10);
