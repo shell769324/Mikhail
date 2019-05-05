@@ -366,18 +366,3 @@ void* inspector(void* ptr) {
   }
   return nullptr;
 }
-
-
-int main() {
-  SkipList* sl = new SkipList(10);
-  pthread_t pthreads[15];
-  for(int i = 0; i < 15; i++) {
-    int modi = i % 3;
-    pthread_create(pthreads + i, nullptr,
-      modi == 0 ? producer : (modi == 1 ? consumer : inspector), (void*) sl);    
-  }
-  for(int i = 0; i < 15; i++) {
-    pthread_join(pthreads[i], nullptr);
-  }
-  std::cout << "success" << "\n";
-}

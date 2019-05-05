@@ -6,9 +6,9 @@ LDFLAGS= -lm
 
 LIBS     = -pthread
 
-CFILES = SkipList.cpp
+CFILES = test_mikhail.cpp
 
-all: SkipList
+all: test_mikhail
 
-SkipList: $(CFILES) 
+test_mikhail: $(CFILES) 
 	$(CC) $(CFLAGS) $(CFILES) $(LDFLAGS) $(LIBS)
